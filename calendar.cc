@@ -6,6 +6,7 @@
 
 using fmt::format;
 
+using date::Monday;
 using date::Sunday;
 using date::jan;
 using date::dec;
@@ -40,43 +41,55 @@ class resumable {
  public:
   struct promise_type;
 
- //private:
+ private:
   using handle = std::experimental::coroutine_handle<promise_type>;
   handle handle_;
 
  public:
   struct promise_type {
+    bool value;
+
     auto get_return_object() { return handle::from_promise(*this); }
     auto initial_suspend() { return std::experimental::suspend_always(); }
     auto final_suspend() { return std::experimental::suspend_always(); }
     void unhandled_exception() { std::terminate(); }
     void return_void() {}
+    auto yield_value(bool val) {
+      value = val;
+      return std::experimental::suspend_always();
+    }
   };
 
   resumable(handle h) : handle_(h) {}
-  bool resume();
+
+  bool next() {
+    handle_.resume();
+    return handle_.promise().value;
+  }
 };
 
 auto print_month(year_month ym) -> resumable {
   // Print the month name centered.
   auto field_width = 3;
   cout << format("{0:^{1}}", month_name(ym.month()), field_width * 7 + 1);
-  co_await suspend_always();
+  co_yield false;
 
   // Print spaces until the first weekday.
-  auto offset = year_month_weekday(ym/1).weekday().iso_encoding() - 1;
-  cout << format("{0:{1}}", "", offset * field_width);
+  auto wd_index = year_month_weekday(ym/1).weekday().iso_encoding() - 1;
+  cout << format("{0:{1}}", "", wd_index * field_width);
 
   // Print days.
-  for (auto day = 1u; day <= unsigned((ym/last).day()); ++day) {
+  for (auto day = 1u, end = unsigned((ym/last).day()); day <= end; ++day) {
     cout << format(" {:2}", day);
-    if (year_month_weekday(ym/day).weekday() == Sunday)
-      co_await suspend_always();
+    if (year_month_weekday(ym/day).weekday() == Sunday) 
+      co_yield day == end;
   }
-  auto wd = year_month_weekday(ym/last).weekday();
-  if (wd != Sunday) {
-    cout << format("{0:{1}}", "", (7 - wd.iso_encoding()) * field_width);
-    co_await suspend_always();
+  
+  // Print spaces after the last weekday.
+  wd_index = year_month_weekday(ym/last).weekday().iso_encoding();
+  for (int i = 0; i < 2; ++i, wd_index = 0) {
+    cout << format("{0:{1}}", "", (7 - wd_index) * field_width);
+    co_yield true;
   }
 }
 
@@ -85,15 +98,15 @@ int main() {
     auto m0 = print_month(start + months(0));
     auto m1 = print_month(start + months(1));
     auto m2 = print_month(start + months(2));
-    while (!m0.handle_.done() && !m1.handle_.done() && !m2.handle_.done()) {
-      m0.handle_.resume();
-      cout << " ";
-      m1.handle_.resume();
-      cout << " ";
-      m2.handle_.resume();
-      cout << "\n";
-      // TODO: fix formatting of the last week and reduce copy-pasta
-    }
+    bool done = false;
+    do {
+      done = m0.next();
+      cout << ' ';
+      done &= m1.next();
+      cout << ' ';
+      done &= m2.next();
+      cout << '\n';
+    } while (!done);
     cout << "\n";
   }
 }
