@@ -1,8 +1,9 @@
 #include <fmt/core.h>
 #include <date/date.h>
 #include <exception>
-#include <iostream>
 #include <experimental/coroutine>
+#include <iostream>
+#include <vector>
 
 using fmt::format;
 
@@ -68,23 +69,24 @@ class resumable {
   }
 };
 
+// Prints a month suspending at every end of line.
 auto print_month(year_month ym) -> resumable {
   // Print the month name centered.
   auto field_width = 3;
-  cout << format("{0:^{1}}", month_name(ym.month()), field_width * 7 + 1);
+  cout << format("{0:^{1}}", month_name(ym.month()), field_width * 7);
   co_yield false;
 
   // Print spaces until the first weekday.
-  auto wd_index = year_month_weekday(ym/1).weekday().iso_encoding() - 1;
-  cout << format("{0:{1}}", "", wd_index * field_width);
+  auto wd_index = year_month_weekday(ym/1).weekday().iso_encoding();
+  cout << format("{0:{1}}", "", (wd_index - 1) * field_width);
 
   // Print days.
   for (auto day = 1u, end = unsigned((ym/last).day()); day <= end; ++day) {
-    cout << format(" {:2}", day);
+    cout << format("{:2} ", day);
     if (year_month_weekday(ym/day).weekday() == Sunday) 
       co_yield day == end;
   }
-  
+
   // Print spaces after the last weekday.
   wd_index = year_month_weekday(ym/last).weekday().iso_encoding();
   for (int i = 0; i < 2; ++i, wd_index = 0) {
@@ -93,20 +95,26 @@ auto print_month(year_month ym) -> resumable {
   }
 }
 
+void print_month_row(year_month start, int num_months) {
+  std::vector<resumable> resumables;
+  for (int i = 0; i < num_months; ++i)
+    resumables.push_back(print_month(start + months(i)));
+  for (;;) {
+    bool done = true;
+    for (auto& r: resumables) {
+      cout << ' ';
+      done &= r.next();
+    }
+    cout << '\n';
+    if (done) break;
+  }
+  cout << '\n';
+}
+
 int main() {
-  for (auto start = 2020_y/jan; start <= 2020_y/dec; start += months(3)) {
-    auto m0 = print_month(start + months(0));
-    auto m1 = print_month(start + months(1));
-    auto m2 = print_month(start + months(2));
-    bool done = false;
-    do {
-      done = m0.next();
-      cout << ' ';
-      done &= m1.next();
-      cout << ' ';
-      done &= m2.next();
-      cout << '\n';
-    } while (!done);
-    cout << "\n";
+  int months_per_row = 3;
+  for (auto start = 2020_y/jan; start <= 2020_y/dec;
+       start += months(months_per_row)) {
+    print_month_row(start, months_per_row);
   }
 }
