@@ -3,6 +3,7 @@
 #include <exception>
 #include <experimental/coroutine>
 #include <iostream>
+#include <map>
 #include <vector>
 
 using fmt::format;
@@ -11,6 +12,7 @@ using date::Sunday;
 using date::jan;
 using date::dec;
 using date::months;
+using date::month_day;
 using date::year_month;
 using date::year_month_weekday;
 using namespace date::literals;
@@ -18,9 +20,24 @@ using namespace date::literals;
 using std::cout;
 using std::experimental::suspend_always;
 
+std::map<month_day, std::string> special_days{
+  {jan/ 1, "🎁"},
+  {jan/14, "🎄"},
+  {feb/23, "🔫"},
+  {mar/ 8, "💃"},
+  {apr/12, "🚀"},
+  {may/ 1, "👷"},
+  {may/ 9, "🎖️ "}, // Extra space to workaround a bug in iTerm2.
+  {jun/12, "🇷🇺 "},
+  {aug/ 2, "⛲"},
+  {sep/ 1, "📚"},
+  {nov/ 4, "🤝"},
+  {dec/31, "🎅"}
+};
+
 const char* const month_names[] = {
-  "January", "February", "March", "April",  "May", "June",
-  "July", "August", "September", "October", "November", "December"
+  "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+  "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
 };
 
 auto month_name(date::month mon) {
@@ -72,7 +89,9 @@ auto print_month(year_month ym) -> generator {
 
   // Print days.
   for (auto day = 1u, end = unsigned((ym/last).day()); day <= end; ++day) {
-    cout << format("{:2} ", day);
+    auto special = special_days.find(ym.month()/day);
+    if (special == special_days.end()) cout << format("{:2} ", day);
+    else cout << format("{} ", special->second);
     if (year_month_weekday(ym/day).weekday() == Sunday) 
       co_yield day == end;
   }
@@ -92,7 +111,7 @@ void print_calendar_row(year_month start, int num_months) {
   for (;;) {
     bool done = true;
     for (auto& g: gens) {
-      cout << ' ';
+      cout << "   ";
       done &= g.next();
     }
     cout << '\n';

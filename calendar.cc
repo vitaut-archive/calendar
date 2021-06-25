@@ -19,7 +19,7 @@ using std::cout;
 using std::experimental::suspend_always;
 
 const char* const month_names[] = {
-  "January", "February", "March", "April",  "May", "June",
+  "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December"
 };
 
